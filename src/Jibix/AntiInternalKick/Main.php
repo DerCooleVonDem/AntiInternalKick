@@ -1,5 +1,6 @@
 <?php
 namespace Jibix\AntiInternalKick;
+use Jibix\AntiInternalKick\commands\LastErrorCommand;
 use Jibix\AntiInternalKick\utils\ModifiedRakLib;
 use pocketmine\network\mcpe\RakLibInterface;
 use pocketmine\plugin\PluginBase;
@@ -32,6 +33,8 @@ class Main extends PluginBase{
     public function onEnable(): void{
         self::$instance = $this;
         $this->saveResource('config.yml');
+
+        $this->getServer()->getCommandMap()->register("lasterror", new LastErrorCommand());
 
         $network = Server::getInstance()->getNetwork();
         foreach ($network->getInterfaces() as $interface) {

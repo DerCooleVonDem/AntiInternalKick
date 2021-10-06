@@ -1,5 +1,6 @@
 <?php
 namespace Jibix\AntiInternalKick\utils;
+use Jibix\AntiInternalKick\commands\LastErrorCommand;
 use Jibix\AntiInternalKick\Main;
 use pocketmine\event\player\PlayerCreationEvent;
 use pocketmine\network\AdvancedSourceInterface;
@@ -11,6 +12,8 @@ use pocketmine\network\Network;
 use pocketmine\Player;
 use pocketmine\Server;
 use pocketmine\snooze\SleeperNotifier;
+use pocketmine\utils\MainLogger;
+use pocketmine\utils\Utils;
 use raklib\protocol\EncapsulatedPacket;
 use raklib\protocol\PacketReliability;
 use raklib\RakLib;
@@ -156,6 +159,24 @@ class ModifiedRakLib implements ServerInstance, AdvancedSourceInterface{
                     $logger->logException($e);
                 }
 
+                $lastErrorAsString = "";
+
+                $trace = $e->getTrace();
+                $exception = self::printExceptionMessage($e);
+                $lastErrorAsString = $lastErrorAsString."\n\n\n§a$exception\n\n";
+
+                foreach(Utils::printableTrace($trace) as $line){
+                    $lastErrorAsString = $lastErrorAsString."§7$line\n\n";
+                }
+
+                for($prev = $e->getPrevious(); $prev !== null; $prev = $prev->getPrevious()){
+                    foreach(Utils::printableTrace($prev->getTrace()) as $line){
+                        $lastErrorAsString = $lastErrorAsString."   §e$line\n";
+                    }
+                }
+
+                LastErrorCommand::setLastError($lastErrorAsString);
+
                 if ($player instanceof Player) {
                     if ($config['send-message'])
                         $player->sendMessage($config['message']);
@@ -165,6 +186,37 @@ class ModifiedRakLib implements ServerInstance, AdvancedSourceInterface{
                 //$this->interface->blockAddress($address, 5);
             }
         }
+    }
+
+    private static function printExceptionMessage(\Throwable $e) : string{
+        static $errorConversion = [
+            0 => "EXCEPTION",
+            E_ERROR => "E_ERROR",
+            E_WARNING => "E_WARNING",
+            E_PARSE => "E_PARSE",
+            E_NOTICE => "E_NOTICE",
+            E_CORE_ERROR => "E_CORE_ERROR",
+            E_CORE_WARNING => "E_CORE_WARNING",
+            E_COMPILE_ERROR => "E_COMPILE_ERROR",
+            E_COMPILE_WARNING => "E_COMPILE_WARNING",
+            E_USER_ERROR => "E_USER_ERROR",
+            E_USER_WARNING => "E_USER_WARNING",
+            E_USER_NOTICE => "E_USER_NOTICE",
+            E_STRICT => "E_STRICT",
+            E_RECOVERABLE_ERROR => "E_RECOVERABLE_ERROR",
+            E_DEPRECATED => "E_DEPRECATED",
+            E_USER_DEPRECATED => "E_USER_DEPRECATED"
+        ];
+
+        $errstr = preg_replace('/\s+/', ' ', trim($e->getMessage()));
+
+        $errno = $e->getCode();
+        $errno = $errorConversion[$errno] ?? $errno;
+
+        $errfile = Utils::cleanPath($e->getFile());
+        $errline = $e->getLine();
+
+        return get_class($e) . ": \"$errstr\" ($errno) in \"$errfile\" at line $errline";
     }
 
     public function blockAddress(string $address, int $timeout = 300){
